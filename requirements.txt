@@ -1,0 +1,15 @@
+# Core scientific stack
+numpy==1.26.4
+scipy==1.11.4
+matplotlib==3.8.0
+networkx==3.1
+
+# Qiskit
+qiskit==1.0.2
+qiskit-aer==0.14.2
+qiskit-ibm-runtime==0.22.0
+
+# Jupyter
+jupyter==1.0.0
+nbconvert==7.10.0
+ipykernel==6.28.0
