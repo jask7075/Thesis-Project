@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantum-community-detection"
+version = "0.1.0"
+description = "MSc thesis: graph community detection with QAOA using one-hot, binary and Hamming encodings"
+readme = "README.md"
+# numpy 1.26 has no wheels for Python 3.13+
+requires-python = ">=3.10,<3.13"
+authors = [{ name = "Jasleen Kaur" }]
+
+# Versions the code was tested with (Python 3.12)
+dependencies = [
+    # Core scientific stack
+    "numpy==1.26.4",
+    "scipy==1.13.1",
+    "matplotlib==3.9.0",
+    "networkx==3.3",
+    # Qiskit
+    "qiskit==1.1.0",
+    "qiskit-aer==0.14.2",
+    # hardware.py relies on the "ibm_cloud" channel name, which runtime >= 0.30 replaced
+    "qiskit-ibm-runtime==0.24.1",
+    "pylatexenc==2.10",  # circuit drawing via circuit.draw('mpl')
+]
+
+[project.optional-dependencies]
+# Only needed for the archived notebooks
+notebooks = [
+    "jupyter==1.0.0",
+    "nbconvert==7.17.1",
+    "ipykernel==6.29.4",
+]
+
+[tool.setuptools]
+packages = [
+    "graphUtility",
+    "quantumUtility",
+    "quantumEncodings",
+    "classicalEncoding",
+]
