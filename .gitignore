@@ -3,3 +3,4 @@
 /__pycache__
 /communityGraphFunctions.py
 /quantumUtility.py
+/.env
