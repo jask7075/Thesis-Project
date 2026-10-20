@@ -4,11 +4,12 @@ Examples (from the project root):
     python scripts/run.py --encoding onehot    --solver qaoa      --graph clique-chain:3x8 -K 2 -P 1 --lam 1
     python scripts/run.py --encoding onehot    --solver classical --graph davis            -K 2 --lam 30
     python scripts/run.py --encoding binary    --solver qaoa      --graph clique-chain:3x3 -K 3 -P 1
-    python scripts/run.py --encoding hamming74 --solver classical --graph clique-chain:3x6 -K 6 --lam 30
-    python scripts/run.py --encoding hamming74 --solver hardware  --graph clique-chain:3x2 -K 2 --lam 5
-    python scripts/run.py --encoding hamming74 --solver hardware  --graph clique-chain:3x2 -K 2 --lam 5 --submit
+    python scripts/run.py --encoding hamming74 --solver classical --graph karate           -K 2
+    python scripts/run.py --encoding hamming74 --solver hardware  --graph clique-chain:3x2 -K 2
+    python scripts/run.py --encoding hamming74 --solver hardware  --graph clique-chain:3x2 -K 2 --submit
 
 Hardware runs are dry runs (nothing submitted) unless --submit is given.
+Hamming runs default to lambda = 0.1/N (see quantumEncodings.hamming.default_hamming_lambda).
 """
 
 import argparse
@@ -42,7 +43,8 @@ def parse_args():
                         help="clique-chain:XxY, initial, karate, les-miserables or davis")
     parser.add_argument("-K", type=int, required=True, help="number of communities")
     parser.add_argument("-P", type=int, default=1, help="number of QAOA layers")
-    parser.add_argument("--lam", type=float, default=1.0, help="penalty strength (lambda)")
+    parser.add_argument("--lam", type=float, default=None,
+                        help="penalty strength (lambda); default 0.1/N for Hamming, 1.0 otherwise")
     parser.add_argument("--gamma", type=float, default=INITIAL_GAMMA, help="initial γ for every layer")
     parser.add_argument("--beta", type=float, default=INITIAL_BETA, help="initial β for every layer")
     parser.add_argument("--mixer", choices=["generator", "x"], default=None,
@@ -67,9 +69,10 @@ def run(args, G, N):
         raise SystemExit("The hardware solver is only implemented for the Hamming encodings.")
 
     if args.encoding == "onehot":
+        lam = 1.0 if args.lam is None else args.lam
         if args.solver == "qaoa":
-            return run_onehot_qaoa(G, N, args.K, args.P, args.lam, args.gamma, args.beta)
-        return run_onehot_classical(G, N, args.K, args.lam, seed=42 if args.seed is None else args.seed)
+            return run_onehot_qaoa(G, N, args.K, args.P, lam, args.gamma, args.beta)
+        return run_onehot_classical(G, N, args.K, lam, seed=42 if args.seed is None else args.seed)
 
     if args.encoding == "binary":
         if args.solver == "qaoa":

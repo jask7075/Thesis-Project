@@ -130,6 +130,18 @@ HAMMING_74 = HammingCode("Hamming(7,4)", 7, PARITY_CODES_74, GENERATOR_CODES_74,
 HAMMING_84 = HammingCode("Hamming(8,4)", 8, PARITY_CODES_84, GENERATOR_CODES_84, default_mixer="x")
 HAMMING_CODES = {"hamming74": HAMMING_74, "hamming84": HAMMING_84}
 
+# Default parity penalty, lambda = HAMMING_LAMBDA_SCALE / N (tuned with
+# simulated annealing across Tri-2..Tri-16, Karate, Davis and Les Misérables).
+# Flipping one bit changes the 1/(4m)-normalised modularity term by O(1/N),
+# so a size-independent constant is either too weak on small graphs or so
+# strong on large ones that the barrier between codewords cannot be crossed.
+HAMMING_LAMBDA_SCALE = 0.1
+
+
+def default_hamming_lambda(N):
+    """Parity penalty strength scaled to the graph size: HAMMING_LAMBDA_SCALE / N."""
+    return HAMMING_LAMBDA_SCALE / N
+
 
 def create_modularity_penalty_hamiltonian(G, N, B, codeword_length):
     """Creates the modularity Hamiltonian for the Hamming(7,4) and Hamming(8,4) encodings.
@@ -199,8 +211,9 @@ def create_parity_penalty_hamiltonian(N, codeword_length, parity_checks, lambda_
     very different energy scales, causing the optimiser to ignore whichever
     is smaller.  lambda_penalty sets the constraint strength so it dominates
     over invalid (non-codeword) states while still leaving the modularity
-    term visible.  Note the modularity term is normalised by 1/(4m), so
-    lambda should be of the order of max|B_ij| * L / (4m), not of B itself.
+    term visible.  Note the modularity term is normalised by 1/(4m), so a
+    single bit flip changes it by O(1/N); default_hamming_lambda(N) scales
+    lambda the same way.
 
     Qubit mapping: node i, bit q  ->  i * codeword_length + q
 
@@ -509,7 +522,8 @@ def build_hamming_qaoa_circuit(G, N, K, P, lambda_penalty, code, mixer=None):
         N (int): The number of nodes in the graph.
         K (int): The number of communities.
         P (int): The number of QAOA layers.
-        lambda_penalty (float): Penalty coefficient for the parity constraint Hamiltonian.
+        lambda_penalty (float): Penalty coefficient for the parity constraint Hamiltonian;
+            None uses default_hamming_lambda(N).
         code (HammingCode): HAMMING_74 or HAMMING_84.
         mixer (str): "generator" (code-preserving generator X mixer + Steane |+_L>
             start) or "x" (default X mixer + |+>^n start). None uses code.default_mixer.
@@ -518,6 +532,8 @@ def build_hamming_qaoa_circuit(G, N, K, P, lambda_penalty, code, mixer=None):
         tuple: (circuit (QuantumCircuit), total_hamiltonian (SparsePauliOp), num_qubits (int)).
     """
     mixer = mixer or code.default_mixer
+    if lambda_penalty is None:
+        lambda_penalty = default_hamming_lambda(N)
 
     display_graph(create_supernode(G, code.length), "Supernode Structure")
 
@@ -556,7 +572,8 @@ def run_hamming_qaoa(G, N, K, P, lambda_penalty, code, mixer=None,
         N (int): The number of nodes in the graph.
         K (int): The number of communities.
         P (int): The number of QAOA layers.
-        lambda_penalty (float): Penalty coefficient for the parity constraint Hamiltonian.
+        lambda_penalty (float): Penalty coefficient for the parity constraint Hamiltonian;
+            None uses default_hamming_lambda(N).
         code (HammingCode): HAMMING_74 or HAMMING_84.
         mixer (str): "generator" or "x"; None uses code.default_mixer.
         initial_gamma (float): Starting value for every γ parameter.
@@ -627,7 +644,8 @@ def run_hamming_hardware(G, N, K, P, lambda_penalty, code, mixer=None,
         N (int): The number of nodes in the graph.
         K (int): The number of communities.
         P (int): The number of QAOA layers.
-        lambda_penalty (float): Penalty coefficient for the parity constraint Hamiltonian.
+        lambda_penalty (float): Penalty coefficient for the parity constraint Hamiltonian;
+            None uses default_hamming_lambda(N).
         code (HammingCode): HAMMING_74 or HAMMING_84.
         mixer (str): "generator" or "x"; None uses code.default_mixer.
         n_iterations (int): SPSA steps = hardware jobs. Default 20.

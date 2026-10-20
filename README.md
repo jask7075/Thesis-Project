@@ -67,15 +67,15 @@ All commands run from the project root. Plots and a `result.json` are saved to `
 # QAOA on the simulator
 python scripts/run.py --encoding onehot    --solver qaoa --graph clique-chain:3x8 -K 2 -P 1 --lam 1
 python scripts/run.py --encoding binary    --solver qaoa --graph clique-chain:3x3 -K 3 -P 2
-python scripts/run.py --encoding hamming74 --solver qaoa --graph clique-chain:3x2 -K 2 -P 1 --lam 0.05
+python scripts/run.py --encoding hamming74 --solver qaoa --graph clique-chain:3x2 -K 2 -P 1
 
 # Classical baselines
 python scripts/run.py --encoding onehot    --solver classical --graph davis            -K 2 --lam 30
-python scripts/run.py --encoding hamming84 --solver classical --graph clique-chain:3x2 -K 2 --lam 0.05
+python scripts/run.py --encoding hamming84 --solver classical --graph clique-chain:3x2 -K 2
 
 # IBM Quantum hardware (Hamming only): dry run by default, --submit spends n_iterations + 1 jobs
-python scripts/run.py --encoding hamming74 --solver hardware --graph clique-chain:3x2 -K 2 --lam 0.05
-python scripts/run.py --encoding hamming74 --solver hardware --graph clique-chain:3x2 -K 2 --lam 0.05 --submit
+python scripts/run.py --encoding hamming74 --solver hardware --graph clique-chain:3x2 -K 2
+python scripts/run.py --encoding hamming74 --solver hardware --graph clique-chain:3x2 -K 2 --submit
 
 # Analyse a submitted hardware run
 python scripts/analysis.py correct results/<run>/result.json              # syndrome correction report, no jobs
@@ -92,7 +92,7 @@ from graphUtility.graphs import create_clique_chain_graph
 from quantumEncodings.hamming import run_hamming_qaoa, HAMMING_74
 
 G, N = create_clique_chain_graph(3, 2)
-result = run_hamming_qaoa(G, N, K=2, P=1, lambda_penalty=0.05, code=HAMMING_74)
+result = run_hamming_qaoa(G, N, K=2, P=1, lambda_penalty=None, code=HAMMING_74)  # None: 0.1/N
 ```
 
 ---
@@ -123,11 +123,12 @@ The status grid and per-cell details go to `test/results/<timestamp>/report.md` 
 | `N` | Number of nodes in the graph |
 | `K` | Number of communities |
 | `P` | Number of QAOA layers (circuit depth) |
-| `--lam` / `lambda_penalty` | Penalty strength enforcing encoding constraints |
+| `--lam` / `lambda_penalty` | Penalty strength enforcing encoding constraints (default 0.1/N for Hamming, 1.0 for one-hot) |
 | `--gamma` / `--beta` | Initial QAOA angles for every layer (default π and π/2) |
 | `--mixer` | Hamming mixer: `generator` (default for (7,4)) or `x` (default for (8,4)) |
 
 Notes:
 - Initial QAOA parameters are assigned by parameter name (`γ[i]`, `β[i]`), because Qiskit orders `circuit.parameters` as β before γ.
 - The modularity matrix uses weighted degrees and `list(G.nodes())` order everywhere, for both QAOA and the classical baselines.
-- The Hamming modularity term is normalised by `1/(4m)` over `i<j`, like the one-hot and binary encodings, so `lambda_penalty` values are much smaller than they were in the archived notebooks (≈0.05 rather than 5–30 for the clique-chain examples).
+- The Hamming modularity term is normalised by `1/(4m)` over `i<j`, like the one-hot and binary encodings. A single bit flip then changes it by O(1/N), so the Hamming defaults scale with graph size: λ = 0.1/N, and simulated annealing cools from 3/N to 0.001/N with 5 restarts (tuned across all matrix graphs). A fixed λ such as the archived notebooks' 5–30 freezes the search, because the barrier between codewords can't be crossed.
+- For K > 2, the Hamming energy can be degenerate: on Tri-3 and Tri-4 the minimum energy is shared by codeword assignments that decode to the planted partition and to a 2-group split, so the solver may return either.

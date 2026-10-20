@@ -40,7 +40,7 @@ from graphUtility.graphs import graph_from_spec  # noqa: E402
 
 PLANTED = None  # K = number of planted communities of the graph (column default)
 
-# (row label, encoding, solver, K or PLANTED, lambda)
+# (row label, encoding, solver, K or PLANTED, lambda or None for the encoding default)
 ROWS = [
     ("Classical Binary Runs", "binary", "classical", PLANTED, 1.0),
     ("Quantum Binary Runs", "binary", "qaoa", PLANTED, 1.0),
@@ -52,10 +52,10 @@ ROWS = [
     ("Q 1-hot 8", "onehot", "qaoa", 8, 1.0),
     ("Cl 1-hot 16", "onehot", "classical", 16, 30.0),
     ("Q 1-hot 16", "onehot", "qaoa", 16, 1.0),
-    ("Cl H74", "hamming74", "classical", PLANTED, 0.05),
-    ("Q H74", "hamming74", "qaoa", PLANTED, 0.05),
-    ("Cl H84", "hamming84", "classical", PLANTED, 0.05),
-    ("Q H84", "hamming84", "qaoa", PLANTED, 0.05),
+    ("Cl H74", "hamming74", "classical", PLANTED, None),
+    ("Q H74", "hamming74", "qaoa", PLANTED, None),
+    ("Cl H84", "hamming84", "classical", PLANTED, None),
+    ("Q H84", "hamming84", "qaoa", PLANTED, None),
 ]
 
 # (column label, graph spec, planted number of communities)
@@ -142,7 +142,9 @@ def run_cell(row, column, out_root, timeout):
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "run.py"),
            "--encoding", encoding, "--solver", solver, "--graph", spec,
-           "-K", str(K), "-P", "1", "--lam", str(lam), "--out", str(out_dir)]
+           "-K", str(K), "-P", "1", "--out", str(out_dir)]
+    if lam is not None:  # None: the encoding's default (0.1/N for Hamming)
+        cmd += ["--lam", str(lam)]
     env = dict(os.environ, MPLBACKEND="Agg", PYTHONWARNINGS="ignore")
 
     start = time.time()

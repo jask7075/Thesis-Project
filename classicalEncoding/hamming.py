@@ -19,7 +19,12 @@ import numpy as np
 
 from graphUtility.modularity import create_modularity_matrix, total_edge_weight
 from graphUtility.plotting import display_graph, plot_communities, plot_convergence
-from quantumEncodings.hamming import decode_hamming_bitstring
+from quantumEncodings.hamming import decode_hamming_bitstring, default_hamming_lambda
+
+# Annealing schedule in units of 1/N, the size of a single-flip modularity change
+# (tuned together with HAMMING_LAMBDA_SCALE)
+SA_T_INIT_SCALE = 3.0
+SA_T_MIN_SCALE = 1e-3
 
 
 def hamming_objective(x_flat, B, N, lambda_penalty, code, m):
@@ -47,12 +52,26 @@ def hamming_objective(x_flat, B, N, lambda_penalty, code, m):
     return h_mod + pp
 
 
-def run_hamming_sa(B, N, lambda_penalty, code, m, T_init=5.0, T_min=1e-4, maxiter=100000, seed=42):
+def run_hamming_sa(B, N, lambda_penalty, code, m, T_init=None, T_min=None, maxiter=100000, seed=42):
     """Minimises the Hamming objective using simulated annealing over binary strings.
 
     At each step a single random bit is flipped and the move is accepted via
     the Metropolis criterion. Temperature decreases geometrically from T_init
     to T_min over maxiter steps.
+
+    Each proposal costs O(N) rather than a full O(N^2 L) energy evaluation:
+    flipping v_{i,q} only changes the terms that contain it,
+
+        dH_mod = (1/2m) v_{i,q} sum_{j != i} B_ij v_{j,q}
+        dPP    = 2 lambda sum_{p contains q} prod_{r in p} v_{i,r}
+
+    Temperature scale
+    -----------------
+    A single flip changes the modularity term by O(1/N) (the mean degree
+    over 2m is exactly 1/N), so the default schedule runs from
+    SA_T_INIT_SCALE / N down to SA_T_MIN_SCALE / N: hot enough to cross the
+    parity barrier between codewords at the start, cold enough to settle
+    into a single partition at the end, for any graph size.
 
     Args:
         B (numpy.ndarray): The modularity matrix for the graph.
@@ -60,8 +79,8 @@ def run_hamming_sa(B, N, lambda_penalty, code, m, T_init=5.0, T_min=1e-4, maxite
         lambda_penalty (float): Penalty coefficient for the parity constraint.
         code (HammingCode): HAMMING_74 or HAMMING_84.
         m (float): The total edge weight of the graph.
-        T_init (float): Initial temperature for the annealing schedule.
-        T_min (float): Final temperature at which annealing stops.
+        T_init (float): Initial temperature; None uses SA_T_INIT_SCALE / N.
+        T_min (float): Final temperature; None uses SA_T_MIN_SCALE / N.
         maxiter (int): Total number of bit-flip proposals.
         seed (int): Random seed for reproducibility.
 
@@ -71,11 +90,18 @@ def run_hamming_sa(B, N, lambda_penalty, code, m, T_init=5.0, T_min=1e-4, maxite
             - best_val (float): The lowest objective value achieved.
             - tracker (list[float]): Best-so-far objective value at each improvement.
     """
+    T_init = SA_T_INIT_SCALE / N if T_init is None else T_init
+    T_min = SA_T_MIN_SCALE / N if T_min is None else T_min
+
     rng = np.random.default_rng(seed)
-    n_vars = N * code.length
+    L = code.length
+    n_vars = N * L
     cooling = (T_min / T_init) ** (1.0 / maxiter)  # Geometric cooling factor applied each iteration
+    checks_with_bit = [[pc for pc in code.parity_checks if q in pc] for q in range(L)]
+    B_offdiag = B - np.diag(np.diag(B))
 
     x = rng.integers(0, 2, size=n_vars).astype(float)
+    V = 2.0 * x.reshape(N, L) - 1.0  # spins of the current state, kept in sync with x
     val = hamming_objective(x, B, N, lambda_penalty, code, m)
     best_x = x.copy()
     best_val = val
@@ -83,18 +109,19 @@ def run_hamming_sa(B, N, lambda_penalty, code, m, T_init=5.0, T_min=1e-4, maxite
 
     T = T_init
     for _ in range(maxiter):
-        # Propose: flip one random bit
+        # Propose: flip one random bit (node i, codeword position q)
         idx = rng.integers(0, n_vars)
-        x_new = x.copy()
-        x_new[idx] = 1.0 - x_new[idx]
+        i, q = divmod(int(idx), L)
+        v = V[i, q]
 
-        new_val = hamming_objective(x_new, B, N, lambda_penalty, code, m)
-        delta = new_val - val
+        delta = v * (B_offdiag[i] @ V[:, q]) / (2 * m)
+        delta += 2 * lambda_penalty * sum(np.prod(V[i, pc]) for pc in checks_with_bit[q])
 
         # Metropolis: always accept improvements, accept worse moves with probability exp(-delta/T)
         if delta < 0 or rng.random() < np.exp(-delta / T):
-            x = x_new
-            val = new_val
+            V[i, q] = -v
+            x[idx] = 1.0 - x[idx]
+            val += delta
             if val < best_val:
                 best_val = val
                 best_x = x.copy()
@@ -106,30 +133,43 @@ def run_hamming_sa(B, N, lambda_penalty, code, m, T_init=5.0, T_min=1e-4, maxite
     return best_x, best_val, tracker
 
 
-def run_hamming_classical(G, N, K, lambda_penalty, code, maxiter=100000, seed=42):
+def run_hamming_classical(G, N, K, lambda_penalty, code, maxiter=100000, n_restarts=5, seed=42):
     """Runs the full classical simulated annealing pipeline for a Hamming encoding.
 
-    Constructs the modularity matrix, runs simulated annealing to find the
-    optimal binary assignment, decodes the result with syndrome correction,
-    and displays the convergence plot and final community partition.
+    Constructs the modularity matrix, runs simulated annealing n_restarts
+    times from different random starts and keeps the lowest energy (single
+    runs occasionally settle with two communities merged), decodes the result
+    with syndrome correction, and displays the convergence plot and final
+    community partition.
 
     Args:
         G (networkx.Graph): The problem graph.
         N (int): The number of nodes in the graph.
         K (int): The number of communities.
-        lambda_penalty (float): Penalty coefficient for the parity constraint.
+        lambda_penalty (float): Penalty coefficient for the parity constraint;
+            None uses default_hamming_lambda(N).
         code (HammingCode): HAMMING_74 or HAMMING_84.
-        maxiter (int): Total number of bit-flip proposals.
-        seed (int): Random seed for reproducibility.
+        maxiter (int): Bit-flip proposals per annealing run.
+        n_restarts (int): Independent annealing runs; the lowest energy is kept.
+        seed (int): Random seed for reproducibility (restart r uses seed + r).
 
     Returns:
         dict: bitstring, assignments, optimal energy and convergence tracker.
     """
+    if lambda_penalty is None:
+        lambda_penalty = default_hamming_lambda(N)
+    print(f"lambda_penalty = {lambda_penalty:.4g}")
+
     display_graph(G, "Input Graph")
     B = create_modularity_matrix(G)
     m = total_edge_weight(G)
 
-    best_x, best_val, tracker = run_hamming_sa(B, N, lambda_penalty, code, m, maxiter=maxiter, seed=seed)
+    best_x, best_val, tracker = None, np.inf, []
+    for restart in range(n_restarts):
+        x, val, run_tracker = run_hamming_sa(B, N, lambda_penalty, code, m, maxiter=maxiter,
+                                             seed=seed + restart)
+        if val < best_val:
+            best_x, best_val, tracker = x, val, run_tracker
     bitstring = [int(b) for b in best_x]
     assignments, _ = decode_hamming_bitstring(bitstring, N, K, code, correct=True)
 
