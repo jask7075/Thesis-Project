@@ -1,0 +1,38 @@
+Graph created: 2 cliques of size 3 in a cycle  |  6 nodes, 8 edges
+
+
+Modularity Matrix for Graph G:
+[[-0.5625  0.625   0.4375 -0.5625 -0.375   0.4375]
+ [ 0.625  -0.25    0.625  -0.375  -0.25   -0.375 ]
+ [ 0.4375  0.625  -0.5625  0.4375 -0.375  -0.5625]
+ [-0.5625 -0.375   0.4375 -0.5625  0.625   0.4375]
+ [-0.375  -0.25   -0.375   0.625  -0.25    0.625 ]
+ [ 0.4375 -0.375  -0.5625  0.4375  0.625  -0.5625]]
+SA finished | best H_total = -2.0758 | improvements = 28
+
+Hamming(7,4) Syndrome Decoding
+Node   Codeword  Syndrome Status                                     Corrected
+-------------------------------------------------------------------------
+0      1100110   000   no error                                   1100110
+1      1100110   000   no error                                   1100110
+2      1100110   000   no error                                   1100110
+3      0011001   000   no error                                   0011001
+4      0011001   000   no error                                   0011001
+5      0011001   000   no error                                   0011001
+
+All codewords valid — no corrections needed.
+
+Community assignment from data bits [2, 4, 5, 6] (K=2):
+Node   Codeword  Data bits  Value   Community
+---------------------------------------
+0      1100110   0110       6       0
+1      1100110   0110       6       0
+2      1100110   0110       6       0
+3      0011001   1001       9       1
+4      0011001   1001       9       1
+5      0011001   1001       9       1
+
+Optimal H_total     : -2.0758
+Community assignments: [0, 0, 0, 1, 1, 1]
+
+Saved plots and result.json to test/results/full-run/Cl_H74__Tri-2

@@ -1,0 +1,15 @@
+Graph created: 2 cliques of size 3 in a cycle  |  6 nodes, 8 edges
+
+
+Modularity Matrix for Graph G:
+[[-0.5625  0.625   0.4375 -0.5625 -0.375   0.4375]
+ [ 0.625  -0.25    0.625  -0.375  -0.25   -0.375 ]
+ [ 0.4375  0.625  -0.5625  0.4375 -0.375  -0.5625]
+ [-0.5625 -0.375   0.4375 -0.5625  0.625   0.4375]
+ [-0.375  -0.25   -0.375   0.625  -0.25    0.625 ]
+ [ 0.4375 -0.375  -0.5625  0.4375  0.625  -0.5625]]
+Optimal objective : 4.1021
+Community assignments: [1, 1, 1, 0, 0, 0]
+Function evaluations : 621
+
+Saved plots and result.json to test/results/full-run/Cl_1-hot_2__Tri-2
